@@ -1,0 +1,4 @@
+private static class HMMER3Hit {
+    String modelName;
+    double bits;
+}
