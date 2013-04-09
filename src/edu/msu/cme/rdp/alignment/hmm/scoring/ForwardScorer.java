@@ -43,12 +43,12 @@ public class ForwardScorer extends HMMScorer {
         double max = max(a, b);
         double min = min(a, b);
 
-        if(min == Double.NEGATIVE_INFINITY) {
+        if (min == Double.NEGATIVE_INFINITY) {
             return max;
         }
-        
+
         return max + log(1 + exp(min - max));
-        
+
         //return (min == Double.NEGATIVE_INFINITY || (max - min) >= 15.7) ? max : max + logsumLookup[(int) ((max - min) * 1000)];
     }
 
@@ -93,7 +93,7 @@ public class ForwardScorer extends HMMScorer {
         xmx(i, XSTATES.E, Double.NEGATIVE_INFINITY);
 
         double lastMaxScore;
-        if(i == 0) {
+        if (i == 0) {
             lastMaxScore = Double.NEGATIVE_INFINITY;
         } else {
             lastMaxScore = maxScores.get(i - 1);
@@ -170,7 +170,7 @@ public class ForwardScorer extends HMMScorer {
         //B
         /*
          * In theory J is always going to be infinite in unihit configuration
-         * 
+         *
          */
         sc = xmx(i, N) + hmm.xsc(N, XSC.MOVE);
         xmx(i, B, max(sc, xmx(i, J) + hmm.xsc(J, XSC.MOVE)));

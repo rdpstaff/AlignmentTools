@@ -24,20 +24,32 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
 
 /**
  *
  * @author fishjord
  */
+@XmlAccessorType(XmlAccessType.FIELD)
 public class ScoringMatrix {
 
     private static ScoringMatrix defaultNuclMatrix = null;
     private static ScoringMatrix defaultProtMatrix = null;
+    private static ScoringMatrix defaultProtMetricMatrix = null;
 
+    
+    public static final int DEFAULT_GAP_OPEN_PEALTY = -10;
+    public static final int DEFAULT_GAP_EXT_PENALTY = -1;
+    public static final int DEFAULT_FRAME_SHIFT_PENALTY = -10;
+    public static final int DEFAULT_METRIC_GAP_OPEN_PEALTY = -13;
+    public static final int DEFAULT_METRIC_GAP_EXT_PENALTY = -4;
+    
     private int[][] scoringMatrix;
     private int[] reverseLookup = new int [127];
     private int gapPenalty;
     private int gapExtend;
+    private int frameshiftPenalty = DEFAULT_FRAME_SHIFT_PENALTY;
 
     private ScoringMatrix() {}
 
@@ -45,6 +57,11 @@ public class ScoringMatrix {
         this(new FileInputStream(f), gapOpenPenalty, gapExtendPenalty);
     }
     
+    public ScoringMatrix(InputStream is, int gapOpenPenalty, int gapExtendPenalty, int frameshiftPenalty) throws IOException {
+        this(is, gapOpenPenalty, gapExtendPenalty);
+        this.frameshiftPenalty = frameshiftPenalty;
+    }
+        
     public ScoringMatrix(InputStream is, int gapOpenPenalty, int gapExtendPenalty) throws IOException {
         this.gapPenalty = gapOpenPenalty;
         this.gapExtend = gapExtendPenalty;
@@ -98,7 +115,7 @@ public class ScoringMatrix {
     public static ScoringMatrix getDefaultNuclMatrix() {
         if(defaultNuclMatrix == null) {
             try {
-                defaultNuclMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/NUC.4.4"), -10, -1);
+                defaultNuclMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/NUC.4.4"), DEFAULT_GAP_OPEN_PEALTY, DEFAULT_GAP_EXT_PENALTY);
             } catch(Exception e) {
                 throw new RuntimeException("Failed to get default nucl matrix...something is very wrong!", e);
             }
@@ -134,13 +151,25 @@ public class ScoringMatrix {
     public static ScoringMatrix getDefaultProteinMatrix() {
         if(defaultProtMatrix == null) {
             try {
-                defaultProtMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/blosum62.txt"), -10, -1);
+                defaultProtMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/blosum62.txt"), DEFAULT_GAP_OPEN_PEALTY, DEFAULT_GAP_EXT_PENALTY);               
             } catch(Exception e) {
                 throw new RuntimeException("Failed to get default protein scoring matrix...something is very wrong!", e);
             }
         }
 
         return defaultProtMatrix;
+    }
+    
+    public static ScoringMatrix getDefaultProteinMetricMatrix() {
+        if(defaultProtMetricMatrix == null) {
+            try {
+                defaultProtMetricMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/blosum62_metric.txt"), DEFAULT_METRIC_GAP_OPEN_PEALTY, DEFAULT_METRIC_GAP_EXT_PENALTY);
+            } catch(Exception e) {
+                throw new RuntimeException("Failed to get default protein scoring matrix blosum62_metric...something is very wrong!", e);
+            }
+        }
+
+        return defaultProtMetricMatrix;
     }
 
     public int score(Character b1, Character b2) {
@@ -160,5 +189,21 @@ public class ScoringMatrix {
 
     public int getGapExtend() {
         return gapExtend;
+    }
+    
+    public int getFrameshiftPenalty(){
+        return frameshiftPenalty;
+    }
+    
+    public int getIndelPenalty(){
+        return gapPenalty + gapExtend ;
+    }
+    
+    public static InputStream getDefaultProteinMatrixStream(){
+        return ScoringMatrix.class.getResourceAsStream("/data/blosum62.txt");
+    }
+    
+    public static InputStream getDefaultProteinMatrixMetricStream(){
+        return ScoringMatrix.class.getResourceAsStream("/data/blosum62_metric.txt");
     }
 }

@@ -67,7 +67,7 @@ public class PairwiseMatcher {
             Sequence bestRef = null;
 
             for (Sequence refSeq : refSeqs) {
-                PairwiseAlignment alignment = PairwiseAligner.align(refSeq.getSeqString(), seq.getSeqString(), matrix, AlignmentMode.glocal);
+                PairwiseAlignment alignment = PairwiseAligner.align( seq.getSeqString(), refSeq.getSeqString(), matrix, AlignmentMode.glocal);
 
                 if (bestAlignment == null || bestAlignment.getScore() < alignment.getScore()) {
                     bestAlignment = alignment;

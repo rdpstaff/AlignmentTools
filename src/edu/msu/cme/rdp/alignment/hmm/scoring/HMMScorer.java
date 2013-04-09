@@ -92,7 +92,7 @@ public abstract class HMMScorer {
     private List<double[][]> matrix;
     private static final int M = 0, I = 1, D = 2;
     protected int i;  //curr seq position
-    private final static float ln2 = (float)log(2);
+    public final static float ln2 = (float)log(2);
     private double[] bestPossibleScore;
     private List<double[]> xmx;
     private static final double[] nullModels = new double[5000];
@@ -104,7 +104,7 @@ public abstract class HMMScorer {
             nullModels[i] = genNull1(i);
         }
     }
-    
+
     public HMMScorer(ProfileHMM hmm) {
         this(hmm, -1);
     }
@@ -122,7 +122,7 @@ public abstract class HMMScorer {
          */
         /*String bestSeq = HMMEmit.mostProbableSeq(hmm);
         bestPossibleScore = new float[hmm.M() + 1];
-        
+
         for (char c : bestSeq.toCharArray()) {
             consume(c);
         }
@@ -133,7 +133,7 @@ public abstract class HMMScorer {
 
         float score = mmx(hmm.M(), hmm.M());
         float startingScore = 0;//(startingState != -1)? mmx(startingState, startingState) : 0;
-        
+
         for (int k = 0; k <= hmm.M(); k++) {
             bestPossibleScore[k] = (float)(score - mmx(k, k) - startingScore);
         }*/
@@ -149,17 +149,17 @@ public abstract class HMMScorer {
         return null1;
     }
 
-    private static double getNull1(int L) {
+    public static double getNull1(int L) {
         if (L < nullModels.length) {
             return nullModels[L];
         } else {
             return genNull1(L);
         }
     }
-    
+
     protected abstract void initializeSM();
     public abstract void consume(char b);
-    
+
     protected final void reset() {
         i = -1;
         matrix = new ArrayList();
@@ -180,9 +180,35 @@ public abstract class HMMScorer {
         xmx.add(new double[XSTATES.values().length]);
     }
 
+    public Object[] getBestScore() {
+        int bestK = -1;
+        double score = Float.NEGATIVE_INFINITY;
+        double[] mx = mmx(i);
+        double[] dx = dmx(i);
+
+        for (int k = 2; k <= modelLength; k++) {
+            double sc = max(mx[k], dx[k]);
+            if (sc > score) {
+                score = sc;
+                bestK = k;
+            }
+            score = max(score, sc);
+        }
+
+        return new Object[]{bestK, score};
+    }
+
+    public Object[] getBestScore(int mp) {
+        int bestK = mp;
+        double[] mx = mmx(i);
+        double[] dx = dmx(i);
+
+        return new Object[]{bestK, max(mx[mp], dx[mp])};
+    }
+
     public double getMaxScore() {
 /*        float score = Float.NEGATIVE_INFINITY;
-        
+
         float[] mx = mmx(i);
         float[] dx = dmx(i);
 
@@ -221,7 +247,7 @@ public abstract class HMMScorer {
         System.out.println(mmx(0, 0) + ", " + dmx(0, 0) + "\t" + mmx(0, 1) + ", " + dmx(0, 1));
         System.out.println(mmx(1, 0) + ", " + dmx(1, 0) + "\t" + mmx(1, 1) + ", " + dmx(1, 1));
         System.out.println();
-        
+
         return (score - getNull1(i)) / ln2;
     }
 
@@ -244,7 +270,7 @@ public abstract class HMMScorer {
     /*final public String getSeq() {
         return seq.toString();
     }*/
-    
+
     final public int getQueryLength() {
         return i;
     }
