@@ -145,7 +145,7 @@ public class CompareErrorType {
 
             ret[scoreIndex++] = qualScores[index];
             numQualScores++;
-            avgEQual += Math.pow(10, -1 * (new Integer(qualScores[index]) / 10));
+            avgEQual += Math.pow(10, -1 * (Double.valueOf(qualScores[index]) / 10.0));
         }
 
         avgEQual /= numQualScores;
@@ -181,13 +181,8 @@ public class CompareErrorType {
 
                 indel_writer.println(querySeqName + "\t" + refSeqName + "\t" + (i + 1) + "\t" + (refCount.forwardCount + refCount.backCount) + "\t" + (queryCount.forwardCount + queryCount.backCount) + "\t" + badChar + "\t" + queryPosMapping[i] + "\t" + refPosMapping[i] + "\t" + ((qualInfo == null) ? "null" : qualInfo[i]));
 
-                if (refCount.forwardCount > 0) {
-                    i += refCount.forwardCount + 1;
-                } else if (queryCount.forwardCount > 0) {
-                    i += queryCount.forwardCount;
-                } else {
-                    i++;
-                }
+                i++;
+                
             }
 
         }
@@ -198,6 +193,9 @@ public class CompareErrorType {
         // going back
         int backCount = 0;
         for (int j = i; j >= 0; j--) {
+            if ( r.charAt(j) == gapChar){  // if it's gap, find the next non-gap character
+                continue;
+            }
             if (r.charAt(j) == badChar) {
                 backCount++;
             } else {
@@ -207,6 +205,9 @@ public class CompareErrorType {
         // going forward
         int forwardCount = 0;
         for (int j = i + 1; j < r.length(); j++) {
+            if ( r.charAt(j) == gapChar){  // if it's gap, find the previous non-gap character
+                continue;
+            }
             if (r.charAt(j) == badChar) {
                 forwardCount++;
             } else {
@@ -243,7 +244,9 @@ public class CompareErrorType {
             qualOutFile = new File(args[6]);
         }
 
-        ScoringMatrix scoringMatrix = ScoringMatrix.getDefaultNuclMatrix();
+        //ScoringMatrix scoringMatrix = ScoringMatrix.getDefaultNuclMatrix();
+        // use a simple scoring function, match score 0, mismatch -1, gap opening -1, gap extension -1.
+        ScoringMatrix scoringMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/simple_scoringmatrix.txt"), -1, -1);
 
         List<Sequence> refSeqList = SequenceReader.readFully(refSeqFile);
         SequenceReader queryReader = new SequenceReader(querySeqFile);
@@ -263,8 +266,9 @@ public class CompareErrorType {
 
                 for (Sequence refSeq : refSeqList) {
                     String refSeqStr = refSeq.getSeqString().toLowerCase();
-                    PairwiseAlignment result = PairwiseAligner.align(querySeqStr, refSeqStr, scoringMatrix, AlignmentMode.glocal);
-                    PairwiseAlignment reversedResult = PairwiseAligner.align(IUBUtilities.reverseComplement(querySeqStr), refSeqStr, scoringMatrix, AlignmentMode.glocal);
+                    PairwiseAlignment result = PairwiseAligner.align( refSeqStr, querySeqStr, scoringMatrix, AlignmentMode.global);
+                    PairwiseAlignment reversedResult = PairwiseAligner.align(refSeqStr, IUBUtilities.reverseComplement(querySeqStr), scoringMatrix, AlignmentMode.global);
+
 
                     PairwiseAlignment currBest = (result.getScore() > reversedResult.getScore()) ? result : reversedResult;
 
@@ -279,15 +283,15 @@ public class CompareErrorType {
                     }
                 }
 
-                int refStart = bestResult.getStartj();
-                int refEnd = bestResult.getEndj();
+                int refStart = bestResult.getStarti();
+                int refEnd = bestResult.getEndi();
 
                 alignOutStream.println(">\t" + seq.getSeqName() + "\t" + bestSeq.getSeqName() + "\t" + refStart + "\t" + refEnd + "\t" + bestResult.getScore() + "\t" + ((bestReversed) ? "\treversed" : ""));
-                alignOutStream.println(bestResult.getAlignedSeqi() + "\n");
                 alignOutStream.println(bestResult.getAlignedSeqj() + "\n");
+                alignOutStream.println(bestResult.getAlignedSeqi() + "\n");
 
-                //seqi is always the query seq, seqj is always the refseq
-                errorProcessor.processSequence(seq.getSeqName(), bestResult.getAlignedSeqi(), bestSeq.getSeqName(), bestResult.getAlignedSeqj(), refStart, bestReversed);
+                //seqi is reference seq, seqj is the refseq
+                errorProcessor.processSequence(seq.getSeqName(), bestResult.getAlignedSeqj(), bestSeq.getSeqName(), bestResult.getAlignedSeqi(), refStart, bestReversed);
             } catch (Exception e) {
                 throw new RuntimeException("Failed while processing seq " + seq.getSeqName(), e);
             }

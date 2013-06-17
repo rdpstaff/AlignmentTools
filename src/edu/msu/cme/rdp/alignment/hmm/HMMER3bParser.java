@@ -201,6 +201,69 @@ public class HMMER3bParser {
     }
 
     public static void main(String[] args) throws IOException {
-        HMMER3bParser.readModel(new File("/home/fishjord/BUT_butyrProd_forward.hmm"));
+        ProfileHMM hmm = HMMER3bParser.readModel(new File("/work/fishjord/other_projects/hmmgs/models/rplb/rplb_for.hmm"));
+
+        System.out.print("double expected_compo[] = {");
+        for (int index = 0; index < hmm.compo.length; index++) {
+            System.out.print(hmm.compo[index]);
+            if (index + 1 != hmm.compo.length) {
+                System.out.print(",");
+            }
+        }
+        System.out.println("};");
+
+        System.out.println("double expected_msc[][20] = {");
+        for (int state = 0; state < hmm.M() + 1; state++) {
+            System.out.print("\t{");
+            for (int index = 0; index < hmm.compo.length; index++) {
+                if (hmm.msc(state, index) == Double.NEGATIVE_INFINITY) {
+                    System.out.print("-std::numeric_limits<double>::infinity()");
+                } else {
+                    System.out.print(hmm.msc(state, index));
+                }
+                if (index + 1 != hmm.compo.length) {
+                    System.out.print(",");
+                }
+            }
+            System.out.print("}");
+            if (state + 1 != hmm.M() + 1) {
+                System.out.println(",");
+            }
+        }
+        System.out.println("};");
+
+        System.out.println("double expected_tsc[][7] = {");
+        for (int state = 0; state < hmm.M() + 1; state++) {
+            System.out.print("\t{");
+            for (TSC tsc : new TSC[]{TSC.MM, TSC.MI, TSC.MD, TSC.IM, TSC.II, TSC.DM, TSC.DD}) {
+
+                if (hmm.tsc(state, tsc) == Double.NEGATIVE_INFINITY) {
+                    System.out.print("-std::numeric_limits<double>::infinity()");
+                } else {
+                    System.out.print(hmm.tsc(state, tsc));
+                }
+                if (tsc != TSC.DD) {
+                    System.out.print(",");
+                }
+            }
+            System.out.print("}");
+            if (state + 1 != hmm.M() + 1) {
+                System.out.println(",");
+            }
+        }
+        System.out.println("};");
+
+        System.out.print("double expected_max_emission[] = {");
+        for(int state = 0;state <= hmm.M();state++) {
+            System.out.print(hmm.getMaxMatchEmission(state));
+            if(state != hmm.M()) {
+                System.out.println(", ");
+            }
+        }
+        System.out.println("};");
+
+        System.out.println("double expected_m_hcost = " + hmm.getHCost().computeHeuristicCost('m', 0) + ";");
+        System.out.println("double expected_d_hcost = " + hmm.getHCost().computeHeuristicCost('d', 0) + ";");
+        System.out.println("double expected_i_hcost = " + hmm.getHCost().computeHeuristicCost('i', 0) + ";");
     }
 }

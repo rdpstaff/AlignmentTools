@@ -71,7 +71,7 @@ public class PairwiseAligner {
                 int sxy = matrix.score(seqi[i - 1], seqj[j - 1]);
 
                 int scoreUp = Math.max(scoringMatrix[i - 1][j][gap] + matrix.getGapExtend(), scoringMatrix[i - 1][j][match] + matrix.getGapOpen());
-                int scoreLeft = Math.max(scoringMatrix[i][j - 1][gap] + matrix.getGapExtend(), scoringMatrix[1][j - 1][match] + matrix.getGapOpen());
+                int scoreLeft = Math.max(scoringMatrix[i][j - 1][gap] + matrix.getGapExtend(), scoringMatrix[i][j - 1][match] + matrix.getGapOpen());
                 int m = Math.max(scoringMatrix[i - 1][j - 1][match], scoringMatrix[i - 1][j - 1][gap]) + sxy;
 
 
@@ -278,47 +278,16 @@ public class PairwiseAligner {
         return new PairwiseAlignment(alignedSeqi.toString().toUpperCase(), alignedSeqj.toString().toUpperCase(), scores, starti, endi, startj, endj);
     }
 
+    /**
+     *
+     * @param seq1 For glocal and overlap modes this sequence is assumed to be the REFERENCE
+     * @param seq2 For glocal and overlap modes this seuqence is assumed to be the QUERY
+     * @param scoringMatrix Scoring matrix to use, the ScoringMatrix class has defaults for Nucleotide and Protein scoring matrices
+     * @param mode Alignment mode, global, local, global-local, overlap, or overlap trim
+     * @return
+     */
     public static PairwiseAlignment align(String seq1, String seq2, ScoringMatrix scoringMatrix, AlignmentMode mode) {
         int[][][] scores = populateMatrix(seq1.toCharArray(), seq2.toCharArray(), scoringMatrix, mode);
         return traceback(scores, seq1.toCharArray(), seq2.toCharArray(), mode);
-    }
-
-    public static void main(String[] args) throws IOException {
-        //String refSeq = "GCTACAGCACTTGGATTCTCGG";
-        //String querySeq = "GCTACTTGGATTCTCTGG";
-        //String querySeq = "CAGCGTGG";
-        //String refSeq = "CAGCGTGG";
-        //String querySeq = "ACTTGGAT";
-
-        //String refSeq = "ACTTGGAT";
-        //String querySeq = "AAAACAGCACTTGGATTCTCGG";
-
-        //String refSeq = "attcgatggacc";
-        //String refSeq = "acgtgattcc";
-        //String querySeq = "acgtgattcc";
-
-        //String refSeq = "ATCCTGGCTCAGGATGAACGCTGGCGGCGTGCCTAATACATGCAAGTCGAGCGAATGGATTAAGAGCTTGCTCTTATGAAGTTAGCGGCGGACGGGTGAGTAACACGTGGGTAACCTGCCCATAAGACTGGGATAACTCCGGGAAACCGGGGCTAATACCGGATAACATTTTGAACCGCATGGTTCGAAATTGAAAGGCGGCTTCGGCTGTCACTTATGGATGGACCCGCGTCGCATTAGCTAGTTGGTGAGGTAACGGCTCACCAAGGCAACGATGCGTAGCCGACCTGAGAGGGTGATCGGCCACACTGGGACTGAGACACGGCCCAGACTCCTACGGGAGGCAGCAGTGGGGAATTTTGGACAATGGGCGCAAGCCTGATCCAGCCATGCCGCGTGTCTGAAGAAGGCCTTCGGGTTGTAAAGGACTTTTGTCAGGGAAGAAAAGGGCGGGGTTAATACCCCTGTCTGATGACGGTACCTGAAGAATAAGCACCGGCTAACTACGTG";
-        //String querySeq = "gatgaacgctggcggcgtgcctaatacatgcaagtcgagcgaatggattaagagcttgctcttatgaagttagcggcggacgggtgagtaacacgtgggtaacctgcccataagactgggataactccgggaaaccggggctaataccggataacattttgaaccgcatggttcgaaattgaaaggcggcttcggctgtcacttatggatggacccgcgtcgcattagctagttggtgaggtaacggctcaccaaggcaacgatgcgtagccgacctgagagggtgatcggccacactgggactgagacacggcccagactcctacgggaggcagcagtagggaatcttccgcaatggacgaaagtctgacggagcaacgccgcgtgagtgatgaaggctttcgggtcgtaaaactctgttgttagggaagaacaagtgctagttgaataagctggcaccttgacggtacctaaccagaaagccacggctaactacgtg";
-
-        //String querySeq = "AAEAGSVEDLELEDVMKIGYRDIRCVESGGPE";
-        //String refSeq = "TRLILHAKAQDTILSLAAEAGSVEDLELEDVMKIGYRDIRCVESGGPE";
-
-        String refSeq = "TRLILNSKAQTTVMDLARERGTVEDLELEDVLVEGHLGVRCAESGGPEPGVGCAGRGVITAINFLEENGAYTEDTDYVFYDVLGDVVCGGFAMPIRENKAKEIYIVT";
-        String querySeq = "ergedleledvlveghlgvrcaesggpepgvgcagrgvitainfleengayt";
-
-        //ScoringMatrix scoringMatrix = ScoringMatrix.getDefaultNuclMatrix();
-        ScoringMatrix scoringMatrix = ScoringMatrix.getDefaultProteinMatrix();
-
-        PairwiseAlignment result = PairwiseAligner.align(refSeq, querySeq, scoringMatrix, AlignmentMode.glocal);
-        System.out.println(result.getAlignedSeqi());
-        System.out.println(result.getAlignedSeqj());
-
-        for (int i : result.getScores()) {
-            System.out.print(i + " ");
-        }
-
-        System.out.println();
-        System.out.println(result.getScore());
-
     }
 }

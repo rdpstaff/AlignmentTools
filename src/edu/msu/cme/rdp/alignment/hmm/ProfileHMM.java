@@ -28,8 +28,8 @@ import static edu.msu.cme.rdp.alignment.hmm.XSC.*;
  *
  * This is a trimmed down representation of a HMMER3/b ascii formatted model
  *
- * It disregards several fields and simply checked to make sure we're using
- * an amino alphabet, checks the format against HMMER3/b and the length
+ * It disregards several fields and simply checked to make sure we're using an
+ * amino alphabet, checks the format against HMMER3/b and the length
  *
  * Everything else besides the model is ignored
  *
@@ -60,6 +60,35 @@ public class ProfileHMM {
     private boolean local = false;
     private boolean normalized;
     private MostProbableHCostHMM hcost;
+    private static final double[] aa_bg;
+
+    static {
+        double[] bg = new double[20];
+
+        bg[0] = 0.0787945;             /* A */
+        bg[1] = 0.0151600;             /* C */
+        bg[2] = 0.0535222;             /* D */
+        bg[3] = 0.0668298;             /* E */
+        bg[4] = 0.0397062;             /* F */
+        bg[5] = 0.0695071;             /* G */
+        bg[6] = 0.0229198;             /* H */
+        bg[7] = 0.0590092;             /* I */
+        bg[8] = 0.0594422;             /* K */
+        bg[9] = 0.0963728;             /* L */
+        bg[10] = 0.0237718;             /* M */
+        bg[11] = 0.0414386;             /* N */
+        bg[12] = 0.0482904;             /* P */
+        bg[13] = 0.0395639;             /* Q */
+        bg[14] = 0.0540978;             /* R */
+        bg[15] = 0.0683364;             /* S */
+        bg[16] = 0.0540687;             /* T */
+        bg[17] = 0.0673417;             /* V */
+        bg[18] = 0.0114135;             /* W */
+        bg[19] = 0.0304133;             /* Y */
+
+
+        aa_bg = bg;
+    }
 
     @Override
     public ProfileHMM clone() {
@@ -115,7 +144,7 @@ public class ProfileHMM {
     }
 
     public double msc(int k, char b) {
-        if(alphaMapping[b] == -1) {
+        if (alphaMapping[b] == -1) {
             throw new IllegalArgumentException("No mapping for " + b);
         }
         return emissions[k][alphaMapping[b]][msc];
@@ -153,7 +182,7 @@ public class ProfileHMM {
     }
 
     public double getMaxMatchEmission(int i) {
-        if(normalized) {
+        if (normalized) {
             return maxMatchEmissions[i];
         } else {
             return 0;
@@ -183,6 +212,8 @@ public class ProfileHMM {
         this.normalized = normalize;
         double Z = log(tsc(0, MD));
 
+        Arrays.fill(maxMatchEmissions, 0);
+
         tsc(0, BM, log(1 - tsc(0, MD)));
         //System.out.println("Z: " + Z + " BM: " + tsc(0, BM));
 
@@ -203,9 +234,11 @@ public class ProfileHMM {
             for (int x = 0; x < this.k; x++) {
                 double val = msc(k, x);
                 if (normalize) {
-                    //val /= bg[x];
-		    val /= compo[x];
+                    //val /= aa_bg[x];
+                    val /= compo[x];
                 }
+
+                //System.err.println("k" + k + " x" + x + ": " + log(val));
 
                 msc(k, x, log(val));
                 if (normalize) {
@@ -222,6 +255,9 @@ public class ProfileHMM {
                 if (trans == BM) {
                     continue;
                 }
+                //if(trans == TSC.MM) {
+                //    System.err.println("k" + k + " MM: " +log(tsc(k, trans)));
+                //}
                 tsc(k, trans, log(tsc(k, trans)));
             }
         }
@@ -253,7 +289,7 @@ public class ProfileHMM {
     }
 
     public MostProbableHCostHMM getHCost() {
-        if(hcost == null) {
+        if (hcost == null) {
             hcost = new MostProbableHCostHMM(this);
         }
 

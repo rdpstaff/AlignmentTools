@@ -17,6 +17,7 @@
 package edu.msu.cme.rdp.alignment.pairwise;
 
 import edu.msu.cme.rdp.alignment.AlignmentMode;
+import java.io.IOException;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -26,8 +27,8 @@ import static org.junit.Assert.*;
  */
 public class PairwiseAlignerTest {
 
-    public PairwiseAlignerTest() {
-    }
+   /* public PairwiseAlignerTest() {
+    }*/
 
     /**
      * Test of reverse method, of class PairwiseAligner.
@@ -64,7 +65,8 @@ public class PairwiseAlignerTest {
         result = PairwiseAligner.align(refSeq, querySeq, scoringMatrix, AlignmentMode.global);
     }
 
-    public void testAlignNuclSeq() {
+    @Test
+    public void testAlignNuclSeq() throws IOException {
         ScoringMatrix scoringMatrix = ScoringMatrix.getDefaultNuclMatrix();
         String refSeq = "TGTGCGGCGGCTTCGCCATGCCGATTTCGCGAAACAAGGCGCAGGAAAATCTACATCGTGATA";
         String querySeq = "TGCGCCATGCCGATTCGCGAAAACAAGGCGCAGGAAATCTACATC";
@@ -77,8 +79,13 @@ public class PairwiseAlignerTest {
         assertEquals("TTCGCCATGCCGATTTCGCG-AAACAAGGCGCAGGAAAATCTACATC", result.getAlignedSeqi());
         assertEquals("TGCGCCATGCCGA-TTCGCGAAAACAAGGCGCAGG-AAATCTACATC", result.getAlignedSeqj());
 
-        result = PairwiseAligner.align(refSeq, querySeq, scoringMatrix, AlignmentMode.global);
-        assertEquals("TGTGCGGCGGCTTCGCCATGCCGATTTCGCG-AAACAAGGCGCAGGAAAATCTACATCGTGATA", result.getAlignedSeqi());
-        assertEquals("-----------TGCGCCATGCCGA-TTCGCGAAAACAAGGCGCAGG-AAATCTACATC------", result.getAlignedSeqj());
+        // test global with simple scoring function        
+        scoringMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/simple_scoringmatrix.txt"), -1, -1);
+        String refSeq2 = "GTGGAACTTATGAAGTCAATGAAGCTAT";
+        String querySeq2 = "GTGGAACTTATGAAAGTCAAATGAAAGCTAT";
+        
+        result = PairwiseAligner.align(refSeq2, querySeq2, scoringMatrix, AlignmentMode.global);
+        assertEquals("GTGGAACTTATG-AAGTC-AATG-AAGCTAT", result.getAlignedSeqi());
+        assertEquals("GTGGAACTTATGAAAGTCAAATGAAAGCTAT", result.getAlignedSeqj());
     }
 }
