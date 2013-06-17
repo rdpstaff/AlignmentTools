@@ -31,6 +31,7 @@ public class AlignmentToolsMain {
         System.err.println("\talignment-merger     - Merge alignments");
         System.err.println("\tpairwise-knn         - Compute k-nearest-neighbors by pairwise alignment");
         System.err.println("\tcompare-error-type   - Calculate errors in raw reads vs expected sequences");
+        System.exit(1);
     }
 
     public static void main(String[] args) throws Exception {
