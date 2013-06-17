@@ -1,1 +1,9 @@
 Alignment tools package from Ribosomal Database Project.  Code for pairwise and hidden markov model (HMMER3 models, no training).
+
+QUICKSTART
+===========
+
+This project depends on https://github.com/rdpstaff/ReadSeq.  Please clone ReadSeq in to the same parent directory that contains AlignmentTools.
+
+ant jar
+java -jar dist/AlignmentTools.jar
