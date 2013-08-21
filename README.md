@@ -37,7 +37,7 @@ This project depends on https://github.com/rdpstaff/ReadSeq and https://github.c
 	
 	This command computes pairwise alignment between the read and each reference sequences. It returns the alignments with the top k highest scores. 
 	It reports the following for each alignment: 	
-	`seqname	k	ref_seqid	ref_desc	orientation	score	ident	query_start	query_end	query_length	ref_start	ref_end`
+	seqname	k	ref_seqid	ref_desc	orientation	score	ident	query_start	query_end	query_length	ref_start	ref_end
 
 		java -jar /path/to/AlignmentTools.jar pairwise-knn         
 		usage: PairwiseKNN <options> <queryFile> <dbFile>
