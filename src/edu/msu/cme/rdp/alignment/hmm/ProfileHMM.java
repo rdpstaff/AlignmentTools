@@ -135,6 +135,10 @@ public class ProfileHMM {
     public ProfileHMM() {
     }
 
+    public String getName() {
+        return name;
+    }
+
     public int M() {
         return m;
     }
