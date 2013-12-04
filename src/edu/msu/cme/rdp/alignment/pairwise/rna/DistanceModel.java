@@ -6,7 +6,7 @@ package edu.msu.cme.rdp.alignment.pairwise.rna;
 //  Copyright (c) 2002 Michigan State University Board of Trustees. All rights reserved.
 //
 
-public interface DistanceModel {
+public abstract class DistanceModel {
 
-    public double getDistance( byte[] seqX, byte[] seqY, int overlapLimit ) throws OverlapCheckFailedException;
+    public abstract double getDistance( byte[] seqX, byte[] seqY, int overlapLimit ) throws OverlapCheckFailedException;
 }

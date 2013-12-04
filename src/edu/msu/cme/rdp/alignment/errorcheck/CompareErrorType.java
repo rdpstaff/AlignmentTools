@@ -32,7 +32,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
@@ -44,6 +46,27 @@ public class CompareErrorType {
 
         int backCount;
         int forwardCount;
+    }
+    
+    public static class PAObject {
+        PairwiseAlignment PA;
+        boolean reversed;
+        Sequence refSeq;
+        
+        public PAObject(PairwiseAlignment pa, boolean reverse, Sequence seq){
+            this.PA = pa;
+            this.reversed = reverse;
+            this.refSeq = seq;
+        }
+        public PairwiseAlignment getPA(){
+            return PA;
+        }
+        public boolean getReversed(){
+            return reversed;
+        }
+        public Sequence getRefSeq(){
+            return refSeq;
+        }
     }
     private static final char gapChar = '-';
     private PrintStream misMatch_writer = null;
@@ -232,6 +255,7 @@ public class CompareErrorType {
         final PrintStream alignOutStream;
         final CompareErrorType errorProcessor;
         Sequence seq;
+        Map<String, PAObject> matchMap = new HashMap();
 
 
         try {
@@ -300,7 +324,6 @@ public class CompareErrorType {
         // use a simple scoring function, match score 0, mismatch -1, gap opening -1, gap extension -1.
         ScoringMatrix scoringMatrix = new ScoringMatrix(ScoringMatrix.class.getResourceAsStream("/data/simple_scoringmatrix.txt"), -1, -1);
 
-
         do {
             try {
                 PairwiseAlignment bestResult = null;
@@ -308,42 +331,57 @@ public class CompareErrorType {
                 boolean bestReversed = false;
                 String querySeqStr = seq.getSeqString().toLowerCase();
                 String reversedQuery = IUBUtilities.reverseComplement(querySeqStr);
+                PAObject bestMatch = null;
+                
+                //checking if sequence has been seen before
+                if(matchMap.containsKey(seq.getSeqString())){
+                    bestMatch = matchMap.get(seq.getSeqString());
+                }
+                else{
+                    for (Sequence refSeq : refSeqList) {
+                            String refSeqStr = refSeq.getSeqString().toLowerCase();
+                            PairwiseAlignment result = PairwiseAligner.align(refSeqStr, querySeqStr, scoringMatrix, AlignmentMode.global);
+                            PairwiseAlignment reversedResult = PairwiseAligner.align(refSeqStr, IUBUtilities.reverseComplement(querySeqStr), scoringMatrix, AlignmentMode.global);
 
 
-                for (Sequence refSeq : refSeqList) {
-                    String refSeqStr = refSeq.getSeqString().toLowerCase();
-                    PairwiseAlignment result = PairwiseAligner.align(refSeqStr, querySeqStr, scoringMatrix, AlignmentMode.global);
-                    PairwiseAlignment reversedResult = PairwiseAligner.align(refSeqStr, IUBUtilities.reverseComplement(querySeqStr), scoringMatrix, AlignmentMode.global);
+                            PairwiseAlignment currBest = (result.getScore() > reversedResult.getScore()) ? result : reversedResult;
 
+                            if (bestResult == null || currBest.getScore() > bestResult.getScore()) {
+                                bestResult = currBest;
+                                bestSeq = refSeq;
+                                if (currBest == reversedResult) {
+                                    bestReversed = true;
+                                } else {
+                                    bestReversed = false;
+                                }
 
-                    PairwiseAlignment currBest = (result.getScore() > reversedResult.getScore()) ? result : reversedResult;
-
-                    if (bestResult == null || currBest.getScore() > bestResult.getScore()) {
-                        bestResult = currBest;
-                        bestSeq = refSeq;
-                        if (currBest == reversedResult) {
-                            bestReversed = true;
-                        } else {
-                            bestReversed = false;
-                        }
+                            }
+                     
+                     //Since this is a new sequence, make a new PAObject to put into the map to compare against later
+                     bestMatch = new PAObject(bestResult, bestReversed, bestSeq);
+                     matchMap.put(seq.getSeqString(), bestMatch);
                     }
                 }
-
-                int refStart = bestResult.getStarti();
-                int refEnd = bestResult.getEndi();
-
-                alignOutStream.println(">\t" + seq.getSeqName() + "\t" + bestSeq.getSeqName() + "\t" + refStart + "\t" + refEnd + "\t" + bestResult.getScore() + "\t" + ((bestReversed) ? "\treversed" : ""));
+                int refStart = bestMatch.getPA().getStarti();
+                int refEnd = bestMatch.getPA().getEndi();
+                bestSeq = bestMatch.getRefSeq();
+                bestReversed = bestMatch.getReversed();
+                bestResult = bestMatch.getPA();
+                
+                //output information
+                alignOutStream.println(">\t" + seq.getSeqName() + "\t" + bestSeq.getSeqName() + "\t" +  seq.getSeqString().length() + "\t" + refStart + "\t" + refEnd + "\t" + bestResult.getScore() + "\t" + ((bestReversed) ? "\treversed" : ""));
                 alignOutStream.println(bestResult.getAlignedSeqj() + "\n");
                 alignOutStream.println(bestResult.getAlignedSeqi() + "\n");
 
                 //seqi is reference seq, seqj is the refseq
                 errorProcessor.processSequence(seq, bestResult.getAlignedSeqj(), bestSeq.getSeqName(), bestResult.getAlignedSeqi(), refStart, bestReversed);
+                    
             } catch (Exception e) {
                 throw new RuntimeException("Failed while processing seq " + seq.getSeqName(), e);
             }
         } while ((seq = queryReader.readNextSequence()) != null);
         queryReader.close();
         alignOutStream.close();
-        errorProcessor.close();
+        errorProcessor.close();     
     }
 }

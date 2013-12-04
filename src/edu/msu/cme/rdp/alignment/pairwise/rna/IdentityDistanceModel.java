@@ -8,7 +8,7 @@ import edu.msu.cme.rdp.readseq.utils.SeqUtils;
 /**
  * @author farrisry
  */
-public class IdentityDistanceModel implements DistanceModel {
+public class IdentityDistanceModel extends DistanceModel {
 
     private static final byte DASH = (byte) '-';
     private static final byte DOT = (byte) '.';
@@ -50,7 +50,7 @@ public class IdentityDistanceModel implements DistanceModel {
     public static void main(String [] args) throws Exception {
         String s1 = "--------KIAVYENETPLFVSNIKHSVEELSAFPEVIDQFEFRKNLVLQELENNKIPF-SFDAIIGRGGLVKPIPGGVYEVNEAMKRDTVHAMR-THACNLGGLIASELASTLPCPAFIADPGVVDELEDIARITGSPLMPKIT--------------------";
         String s2 = "---------IAVYENETPLFVSNIKHSVEELSAFPEVIDQFEFRKNLVLQELENNKIPF-SFDAIIGRGGLVKPIPGGVYEVNEAMKRDTVHAMR-THACNLGGLIASELASTLPCPAFIADPGVVDELEDIARITGSPLMPKITI-------------------";
-        
+
         System.out.println(new IdentityDistanceModel().getDistance(s1.getBytes(), s2.getBytes(), 0));
         System.out.println(new IdentityDistanceModel(true).getDistance(s1.getBytes(), s2.getBytes(), 0));
     }
