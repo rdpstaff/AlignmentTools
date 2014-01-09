@@ -42,15 +42,29 @@ public class AlignmentMerger {
      * @throws IOException
      */
     public static Map<File, String> mergeAlignment(List<File> alignmentFiles, File mergeToFile, Set<Integer> ignoredPositions) throws IOException {
-        if (alignmentFiles.contains(mergeToFile)) {
-            throw new IllegalArgumentException("Merge file list contains the merge to file");
+        OutputStream out = new BufferedOutputStream(new FileOutputStream(mergeToFile));
+        try {
+            return mergeAlignment(alignmentFiles, out, ignoredPositions);
+        } finally {
+            out.close();
         }
+    }
 
+    /**
+     *
+     * @param alignmentFiles
+     * @param writer
+     * @param ignoredPositions Set of model positions that should be masked
+     * (expected starting at ONE not ZERO)
+     * @return Map of files not merged to the reason they weren't
+     * @throws IOException
+     */
+    public static Map<File, String> mergeAlignment(List<File> alignmentFiles, OutputStream os, Set<Integer> ignoredPositions) throws IOException {
         Map<File, String> skippedFiles = new HashMap();
         Map<File, char[]> refSeqMap = getReferenceSeqs(alignmentFiles, ignoredPositions, skippedFiles);
         int[] insertLengths = getInserts(refSeqMap.values());
 
-        FastaWriter mergeStream = new FastaWriter(mergeToFile);
+        FastaWriter mergeStream = new FastaWriter(os);
 
         String mergedRefSeq = null;
         for (File f : refSeqMap.keySet()) {
@@ -99,9 +113,9 @@ public class AlignmentMerger {
 			    is.mark(1);
 			}
 			is.reset();
-			
+
 			SeqReader reader = new SequenceReader(is);
-			
+
 			Sequence seq;
 			while ((seq = reader.readNextSequence()) != null) {
 			    if (seq.getSeqName().equals(refSeqId)) {

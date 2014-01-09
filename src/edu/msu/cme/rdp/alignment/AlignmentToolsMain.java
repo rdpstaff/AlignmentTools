@@ -30,7 +30,7 @@ public class AlignmentToolsMain {
         System.err.println("USAGE: AlignmentToolsMain <subcommand> <options>");
         System.err.println("\talignment-merger     - Merge alignments");
         System.err.println("\tpairwise-knn         - Compute k-nearest-neighbors by pairwise alignment");
-        System.err.println("\tcompare-error-type   - Calculate errors in raw reads vs expected sequences");
+        System.err.println("\tcompare-error-type   - Transfer a sequence alignment from protein sequences to nucleotide sequences");
         System.exit(1);
     }
 
@@ -50,6 +50,8 @@ public class AlignmentToolsMain {
             CompareErrorType.main(args);
         } else if (command.equals("paired-end-assembler")) {
             PairedReadAssembler.main(args);
+        }  else if (command.equals("compare-error-type")) {
+            AlignNucleotideToProtein.main(args);
         } else {
             printUsageAndExit();
             System.err.println("Unknown command: " + command);
