@@ -58,8 +58,8 @@ public class PairwiseKNN {
             i--;
         }
 
-        if (list.size() >= k) {
-            list.remove(k - 1);
+        if (list.size() > k) {
+            list.remove(k);
         }
     }
 
