@@ -17,6 +17,7 @@
 package edu.msu.cme.rdp.alignment;
 
 import edu.msu.cme.rdp.alignment.errorcheck.CompareErrorType;
+import edu.msu.cme.rdp.alignment.errorcheck.RmPartialSeqs;
 import edu.msu.cme.rdp.alignment.pairwise.PairwiseKNN;
 import java.util.Arrays;
 
@@ -30,8 +31,9 @@ public class AlignmentToolsMain {
         System.err.println("USAGE: AlignmentToolsMain <subcommand> <options>");
         System.err.println("\talignment-merger     - Merge alignments");
         System.err.println("\tpairwise-knn         - Compute k-nearest-neighbors by pairwise alignment");
-        System.err.println("\tcompare-error-type   - Transfer a sequence alignment from protein sequences to nucleotide sequences");
+        System.err.println("\tcompare-error-type   - Detect insertion, deletion and substitution errors in sequences comparing to reference sequences");
         System.err.println("\talign-nucl-to-prot   - Transfer a sequence alignment from protein sequences to nucleotide sequences");
+        System.err.println("\trm-partialseq        - remove partial sequences based on pairwise alignment to reference sequences");
         System.exit(1);
     }
 
@@ -53,7 +55,9 @@ public class AlignmentToolsMain {
             PairedReadAssembler.main(args);
         }  else if (command.equals("align-nucl-to-prot")) {
             AlignNucleotideToProtein.main(args);
-        } else {
+        } else if (command.equals("rm-partialseq")) {
+            RmPartialSeqs.main(args);
+        }else {
             printUsageAndExit();
             System.err.println("Unknown command: " + command);
         }
