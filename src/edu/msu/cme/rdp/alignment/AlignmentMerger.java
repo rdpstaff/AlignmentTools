@@ -96,39 +96,27 @@ public class AlignmentMerger {
                     continue;
                 }
 
-		char[] refSeq = null;
-
-                System.err.println("Extracting reference from " + alignmentFile + " (format=" + format + ")");
+                char[] refSeq = null;
 
                 try {
-		    if (format == SequenceFormat.FASTA) {
-			BufferedInputStream is = new BufferedInputStream(new FileInputStream(alignmentFile));
-			while(is.available() > 10000) {
-			    is.skip(is.available() - 10000);
-			}
+                    if (format == SequenceFormat.FASTA) {
+                        BufferedInputStream is = new BufferedInputStream(new FileInputStream(alignmentFile));
+                       
+                        SeqReader reader = new SequenceReader(is);
 
-			is.mark(1);
-			int c;
-			while((c = is.read()) != -1 && (char)c != '>') {
-			    is.mark(1);
-			}
-			is.reset();
-
-			SeqReader reader = new SequenceReader(is);
-
-			Sequence seq;
-			while ((seq = reader.readNextSequence()) != null) {
-			    if (seq.getSeqName().equals(refSeqId)) {
-				refSeq = seq.getSeqString().toCharArray();
-				break;
-			    }
-			}
-			reader.close();
-		    } else {
-			IndexedSeqReader reader = new IndexedSeqReader(alignmentFile);
-			refSeq = reader.readSeq(refSeqId).getSeqString().toCharArray();
-			reader.close();
-		    }
+                        Sequence seq;
+                        while ((seq = reader.readNextSequence()) != null) {
+                            if (seq.getSeqName().equals(refSeqId)) {
+                                refSeq = seq.getSeqString().toCharArray();
+                                break;
+                            }
+                        }
+                        reader.close();
+                    } else {
+                        IndexedSeqReader reader = new IndexedSeqReader(alignmentFile);
+                        refSeq = reader.readSeq(refSeqId).getSeqString().toCharArray();
+                        reader.close();
+                    }
 
                     if (refSeq == null) {
                         throw new IOException();
