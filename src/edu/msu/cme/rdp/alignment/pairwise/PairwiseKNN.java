@@ -163,6 +163,10 @@ public class PairwiseKNN {
     }
     
     public void match() throws IOException, OverlapCheckFailedException {
+        match(false);
+    }
+    
+    public void match(boolean removeBaseN) throws IOException, OverlapCheckFailedException {
         DistanceModel dist = new IdentityDistanceModel();
 
         out.println("#query file: " + queryFile.getName() + " db file: " + refFile.getName() + " k: " + k + " mode: " + mode + " usePrefilter: " + prefilter);
@@ -173,6 +177,12 @@ public class PairwiseKNN {
         PairwiseAlignment alignment;
         SequenceReader queryReader = new SequenceReader(queryFile);
         while ((seq = queryReader.readNextSequence()) != null) {
+            // remove the N's
+            if ( removeBaseN){
+                Sequence temp = new Sequence(seq.getSeqName(), seq.getDesc(), seq.getSeqString().toUpperCase().replace("N", ""));
+                seq = temp;
+            }
+            System.err.println("seq " + seq.getSeqString());
             alignments = getKNN(seq, dbSeqs, mode, k, wordSize, prefilter);
 
             for (int index = 0; index < alignments.size(); index++) {
@@ -208,6 +218,7 @@ public class PairwiseKNN {
         int k = 1;
         int wordSize = 0 ;
         int prefilter = 10 ;  //  The top p closest protein targets
+        boolean removeBaseN = false;
         PrintStream out = new PrintStream(System.out);
 
         Options options = new Options();
@@ -217,7 +228,7 @@ public class PairwiseKNN {
         options.addOption("p", "prefilter", true, "The top p closest targets from kmer prefilter step. Set p=0 to disable the prefilter step. (default = 10) ");
         options.addOption("w", "word-size", true, "The word size used to find closest targets during prefilter. (default " + ProteinWordGenerator.WORDSIZE 
                 + " for protein, " + GoodWordIterator.DEFAULT_WORDSIZE  + " for nucleotide)");
-        
+        options.addOption("n", false, "Remove Ns from the query. Default is false");
 
         try {
             CommandLine line = new PosixParser().parse(options, args);
@@ -250,7 +261,9 @@ public class PairwiseKNN {
             if (line.hasOption("out")) {
                 out = new PrintStream(line.getOptionValue("out"));
             }
-
+            if (line.hasOption('n')) {
+                removeBaseN = true;
+            }
             args = line.getArgs();
 
             if (args.length != 2) {
@@ -267,7 +280,7 @@ public class PairwiseKNN {
         }
         
         PairwiseKNN theObj = new PairwiseKNN(queryFile, refFile, out, mode, k, wordSize, prefilter);
-        theObj.match();
+        theObj.match(removeBaseN);
         
 
     }
