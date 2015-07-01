@@ -182,7 +182,6 @@ public class PairwiseKNN {
                 Sequence temp = new Sequence(seq.getSeqName(), seq.getDesc(), seq.getSeqString().toUpperCase().replace("N", ""));
                 seq = temp;
             }
-            System.err.println("seq " + seq.getSeqString());
             alignments = getKNN(seq, dbSeqs, mode, k, wordSize, prefilter);
 
             for (int index = 0; index < alignments.size(); index++) {
