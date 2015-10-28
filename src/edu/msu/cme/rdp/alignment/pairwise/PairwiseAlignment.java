@@ -30,6 +30,7 @@ public class PairwiseAlignment {
     private List<Integer> scores;
     private int starti, endi;
     private int startj, endj;
+    private double ident = Double.NaN;
 
     public PairwiseAlignment(String alignedSeqi, String alignedSeqj, List<Integer> scores, int starti, int endi, int startj, int endj) {
         this.alignedSeqi = alignedSeqi;
@@ -72,5 +73,13 @@ public class PairwiseAlignment {
 
     public int getStartj() {
         return startj;
+    }
+    
+    public double getIdent(){
+        return ident;
+    }
+    
+    public void setIdent(double i){
+        ident = i;
     }
 }

@@ -35,9 +35,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
@@ -49,21 +55,41 @@ import org.apache.commons.cli.PosixParser;
  */
 public class PairwiseKNN {
 
-    private File queryFile;
-    private File refFile;
-    private int k;  
-    private int prefilter = 0;
+    private final File refFile;
+    private final int k;  // final number of hits to return
+    private final int prefilter;  // number of hits to keep from prefilter stages
     private int wordSize;
-    private  AlignmentMode mode;
-    private List<Sequence> dbSeqs;
-    private PrintStream out;
+    private final AlignmentMode mode;
+    private final HashMap<String, Sequence> dbSeqsMap = new HashMap(); // keep all the refseq in memory for pairwise alignment
+    private final ScoringMatrix matrix;
+    private KmerMatchCore kerMatchCore;
     private static final String dformat = "%1$.3f";
+    private static final DistanceModel dist = new IdentityDistanceModel();
+    private static final Comparator c = new ResultComparator();
     
     public static class Neighbor {
 
         PairwiseAlignment alignment;
         boolean reverse;
         Sequence dbSeq;
+        
+        public boolean isReverse(){
+            return reverse;
+        }
+        
+        public PairwiseAlignment getAlignment(){
+            return alignment;
+        }
+        
+        public Sequence getDbSeq(){
+            return dbSeq;
+        }
+    }
+    
+    public static class ResultComparator implements Comparator<Neighbor> {
+        public int compare(Neighbor t, Neighbor t1) {
+            return t.alignment.getScore() - t1.alignment.getScore();
+        }
     }
 
     private static <T> void insert(T n, List<T> list, Comparator<T> comp, int k) {
@@ -80,51 +106,88 @@ public class PairwiseKNN {
         }
     }
 
-    public static List<Neighbor> getKNN(Sequence query, List<Sequence> dbSeqs, AlignmentMode mode, int k, int wordSize, int prefilter) throws IOException {
+   
+    public PairwiseKNN( File refFile, AlignmentMode mode, int k, int ws, int prefilter) throws IOException{
+        this.refFile = refFile;
+        this.mode = mode;
+        this.k = k;
+        this.prefilter = prefilter;
+        this.wordSize = ws;
+        
+        SequenceType refSeqType = SeqUtils.guessSequenceType(refFile);
+        parseRefSeq(refFile);
+        if ( refSeqType == SequenceType.Protein){
+            matrix = ScoringMatrix.getDefaultProteinMatrix();
+            if ( wordSize == 0 ){
+                this.wordSize = ProteinWordGenerator.WORDSIZE;
+            }
+            if ( prefilter > 0){
+                kerMatchCore = new ProteinSeqMatch(new ArrayList<Sequence>(dbSeqsMap.values()), wordSize);
+            }
+        } else {
+            matrix = ScoringMatrix.getDefaultNuclMatrix();
+            if ( wordSize == 0 ){
+                this.wordSize = GoodWordIterator.DEFAULT_WORDSIZE ;
+            }
+            if ( prefilter > 0){
+                kerMatchCore = new NuclSeqMatch(new ArrayList<Sequence>(dbSeqsMap.values()), wordSize);
+            }
+        }
+    }
+     
+    private synchronized void parseRefSeq(File file) throws IOException{
+        SeqReader reader = new SequenceReader(file);
+        Sequence seq;
+        while ((seq = reader.readNextSequence()) != null) {
+            dbSeqsMap.put(seq.getSeqName(), seq);
+        }
+        reader.close();
+    }
+    
+    public Sequence getRefSeq(String seqName){
+        return this.dbSeqsMap.get(seqName);
+    }
+    
+    public String getRefFilename(){
+        return this.refFile.getName();
+    }
+    
+    public int getK(){
+        return k;
+    }
+    /**
+     * 
+     * @param seq
+     * @param refList, allow different reference set for flexibility
+     * @return
+     * @throws IOException
+     * @throws OverlapCheckFailedException 
+     */
+    public List<Neighbor> getKNN(Sequence seq, Collection<Sequence> refList, boolean removeBaseN) throws IOException, OverlapCheckFailedException {
         List<Neighbor> ret = new ArrayList();
         Neighbor n;
-        Comparator c = new Comparator<Neighbor>() {
-            public int compare(Neighbor t, Neighbor t1) {
-                return t.alignment.getScore() - t1.alignment.getScore();
-            }
-        };
-
-        SequenceType seqType = SeqUtils.guessSequenceType(query);
-        ScoringMatrix matrix;
-        KmerMatchCore kerMatchCore;
-        if (seqType == SequenceType.Nucleotide) {
-            matrix = ScoringMatrix.getDefaultNuclMatrix();
-            kerMatchCore = new NuclSeqMatch(dbSeqs, wordSize); 
-        } else {
-            matrix = ScoringMatrix.getDefaultProteinMatrix();
-            kerMatchCore = new ProteinSeqMatch(dbSeqs, wordSize); 
+        if ( removeBaseN){
+            Sequence temp = new Sequence(seq.getSeqName(), seq.getDesc(), seq.getSeqString().toUpperCase().replace("N", ""));
+            seq = temp;
         }
-
-        List<Sequence> refList;
-       
-        if ( prefilter == 0) {   // do not pre-filter the reference seqs
-            refList = dbSeqs;
-        }else {
-            refList = new ArrayList<Sequence>();
-            ArrayList<ProteinSeqMatch.BestMatch> topKMatches= kerMatchCore.findTopKMatch(query, prefilter);
-            for (KmerMatchCore.BestMatch bestTarget : topKMatches) {
-                refList.add(bestTarget.getBestMatch());
-            }
-        }
-        
+        SequenceType seqType = SeqUtils.guessSequenceType(seq);
         for (Sequence dbSeq : refList) {
             n = new Neighbor();
             n.dbSeq = dbSeq;
-            PairwiseAlignment fwd = PairwiseAligner.align(n.dbSeq.getSeqString(), query.getSeqString(), matrix, mode);
+            PairwiseAlignment fwd = PairwiseAligner.align(n.dbSeq.getSeqString(), seq.getSeqString(), matrix, mode);
             if (seqType == SequenceType.Nucleotide) {
-                PairwiseAlignment rc = PairwiseAligner.align(n.dbSeq.getSeqString(), IUBUtilities.reverseComplement(query.getSeqString()), matrix, mode);
-
+                PairwiseAlignment rc = PairwiseAligner.align(n.dbSeq.getSeqString(), IUBUtilities.reverseComplement(seq.getSeqString()), matrix, mode);
+                
                 if (rc.getScore() > fwd.getScore()) {
                     n.alignment = rc;
                     n.reverse = true;
+                    double ident = 1 - dist.getDistance(rc.getAlignedSeqi().getBytes(), rc.getAlignedSeqj().getBytes(), 0);
+                    rc.setIdent(ident);
                 } else {
                     n.alignment = fwd;
                     n.reverse = false;
+                    double ident = 1 - dist.getDistance(fwd.getAlignedSeqi().getBytes(), fwd.getAlignedSeqj().getBytes(), 0);
+                    fwd.setIdent(ident);
                 }
             } else {
                 n.alignment = fwd;
@@ -135,103 +198,80 @@ public class PairwiseKNN {
         }
                     
         return ret;
-    }
-
-    public PairwiseKNN(File queryFile, File refFile, PrintStream out, AlignmentMode mode, int k, int wordSize, int prefilter) throws IOException{
-        this.queryFile = queryFile;
-        this.refFile = refFile;
-        this.out = out;
-        this.mode = mode;
-        this.k = k;
-        this.prefilter = prefilter;
-        this.wordSize = wordSize;
-        SequenceType querySeqType = SeqUtils.guessSequenceType(queryFile);
-        SequenceType refSeqType = SeqUtils.guessSequenceType(refFile);
-
-        if ( querySeqType !=  refSeqType) {
-            throw new RuntimeException("reference seqs and query seqs must be the same type, either protein or nucleotide. " );
-        }
-        if ( wordSize == 0 ){
-            if ( refSeqType == SequenceType.Protein){
-                this.wordSize = ProteinWordGenerator.WORDSIZE;
-            } else {
-                this.wordSize = GoodWordIterator.DEFAULT_WORDSIZE ;
+    }  
+    
+    public List<Neighbor> findMatch(Sequence seq, boolean removeBaseN) throws IOException, OverlapCheckFailedException {
+        
+        if ( prefilter == 0) {   // do not pre-filter the reference seqs
+            return getKNN(seq, dbSeqsMap.values(), removeBaseN);
+        }else {
+            List<Sequence> refList = new ArrayList<Sequence>();
+            ArrayList<ProteinSeqMatch.BestMatch> topKMatches= kerMatchCore.findTopKMatch(seq, prefilter);
+            for (KmerMatchCore.BestMatch bestTarget : topKMatches) {
+                refList.add(bestTarget.getBestMatch());
             }
-        }
-            
-        dbSeqs = SequenceReader.readFully(refFile);
+            return getKNN(seq, refList, removeBaseN);
+        }        
     }
     
-    public void match() throws IOException, OverlapCheckFailedException {
-        match(false);
-    }
-    
-    public void match(boolean removeBaseN) throws IOException, OverlapCheckFailedException {
-        DistanceModel dist = new IdentityDistanceModel();
-
-        out.println("#query file: " + queryFile.getName() + " db file: " + refFile.getName() + " k: " + k + " mode: " + mode + " usePrefilter: " + prefilter);
-        out.println("#seqname\tk\tref seqid\tref desc\torientation\tscore\tident\tquery start\tquery end\tquery length\tref start\tref end");
-        Sequence seq;
-        List<Neighbor> alignments;
+    private synchronized void printAlignment(Sequence seq, List<Neighbor> alignments, PrintStream out) throws IOException{
         Neighbor n;
         PairwiseAlignment alignment;
-        SequenceReader queryReader = new SequenceReader(queryFile);
-        while ((seq = queryReader.readNextSequence()) != null) {
-            // remove the N's
-            if ( removeBaseN){
-                Sequence temp = new Sequence(seq.getSeqName(), seq.getDesc(), seq.getSeqString().toUpperCase().replace("N", ""));
-                seq = temp;
-            }
-            alignments = getKNN(seq, dbSeqs, mode, k, wordSize, prefilter);
+        for (int index = 0; index < alignments.size(); index++) {
+            n = alignments.get(index);
+            alignment = n.alignment;
 
-            for (int index = 0; index < alignments.size(); index++) {
-                n = alignments.get(index);
-                alignment = n.alignment;
-                double ident = 1 - dist.getDistance(alignment.getAlignedSeqi().getBytes(), alignment.getAlignedSeqj().getBytes(), 0);
+            out.println("@" + seq.getSeqName()
+                    + "\t" + (index + 1)
+                    + "\t" + n.dbSeq.getSeqName()
+                    + "\t" + n.dbSeq.getDesc()
+                    + "\t" + (n.reverse ? "-" : "+")
+                    + "\t" + alignment.getScore()
+                    + "\t" + String.format(dformat,alignment.getIdent())
+                    + "\t" + alignment.getStartj()
+                    + "\t" + alignment.getEndj()
+                    + "\t" + seq.getSeqString().length()
+                    + "\t" + alignment.getStarti()
+                    + "\t" + alignment.getEndi());
 
-                out.println("@" + seq.getSeqName()
-                        + "\t" + (index + 1)
-                        + "\t" + n.dbSeq.getSeqName()
-                        + "\t" + n.dbSeq.getDesc()
-                        + "\t" + (n.reverse ? "-" : "+")
-                        + "\t" + alignment.getScore()
-                        + "\t" + String.format(dformat,ident)
-                        + "\t" + alignment.getStartj()
-                        + "\t" + alignment.getEndj()
-                        + "\t" + seq.getSeqString().length()
-                        + "\t" + alignment.getStarti()
-                        + "\t" + alignment.getEndi());
-
-                out.println(">" + alignment.getAlignedSeqj());
-                out.println(">" + alignment.getAlignedSeqi());
-            }
+            out.println(">" + alignment.getAlignedSeqj());
+            out.println(">" + alignment.getAlignedSeqi());
         }
-        queryReader.close();
-        out.close();
     }
-    
+   
     public static void main(String[] args) throws Exception { 
+        final int maxThreads;
+        final int maxTasks = 1000;
         File queryFile;
         File refFile;
         AlignmentMode mode = AlignmentMode.glocal;
         int k = 1;
         int wordSize = 0 ;
         int prefilter = 10 ;  //  The top p closest protein targets
-        boolean removeBaseN = false;
-        PrintStream out = new PrintStream(System.out);
+        final boolean removeBaseN;
+        final PrintStream out ;
 
         Options options = new Options();
-        options.addOption("m", "mode", true, "Alignment mode {global, glocal, local, overlap, overlap_trimmed} (default= glocal)");
+        options.addOption("m", "mode", true, "Alignment mode {global, glocal, local, overlap, overlap_trim} (default= glocal)");
         options.addOption("k", true, "K-nearest neighbors to return. (default = 1)");
         options.addOption("o", "out", true, "Redirect output to file instead of stdout");
         options.addOption("p", "prefilter", true, "The top p closest targets from kmer prefilter step. Set p=0 to disable the prefilter step. (default = 10) ");
         options.addOption("w", "word-size", true, "The word size used to find closest targets during prefilter. (default " + ProteinWordGenerator.WORDSIZE 
                 + " for protein, " + GoodWordIterator.DEFAULT_WORDSIZE  + " for nucleotide)");
         options.addOption("n", false, "Remove Ns from the query. Default is false");
+        options.addOption("t", "threads", true, "#Threads to use. This process is CPU intensive. (default 1)");
 
         try {
             CommandLine line = new PosixParser().parse(options, args);
 
+            if (line.hasOption("threads")) {
+                maxThreads = Integer.valueOf(line.getOptionValue("threads"));
+                if ( maxThreads >= Runtime.getRuntime().availableProcessors()) {
+                   System.err.println(" Runtime.getRuntime().availableProcessors() " + Runtime.getRuntime().availableProcessors()); 
+                }                
+            } else {
+                maxThreads = 1;
+            }
             if (line.hasOption("mode")) {
                 mode = AlignmentMode.valueOf(line.getOptionValue("mode"));
             }
@@ -259,9 +299,13 @@ public class PairwiseKNN {
             
             if (line.hasOption("out")) {
                 out = new PrintStream(line.getOptionValue("out"));
+            }else {
+                out = new PrintStream(System.out);
             }
             if (line.hasOption('n')) {
                 removeBaseN = true;
+            }else {
+                removeBaseN = false;
             }
             args = line.getArgs();
 
@@ -278,9 +322,45 @@ public class PairwiseKNN {
             return;
         }
         
-        PairwiseKNN theObj = new PairwiseKNN(queryFile, refFile, out, mode, k, wordSize, prefilter);
-        theObj.match(removeBaseN);
-        
+        SequenceType querySeqType = SeqUtils.guessSequenceType(queryFile);
+        SequenceType refSeqType = SeqUtils.guessSequenceType(refFile);
 
+        if ( querySeqType !=  refSeqType) {
+            throw new RuntimeException("reference seqs and query seqs must be the same type, either protein or nucleotide. " );
+        }
+        final PairwiseKNN theObj = new PairwiseKNN( refFile, mode, k, wordSize, prefilter);
+        
+        final AtomicInteger outstandingTasks = new AtomicInteger();        
+        ExecutorService service = Executors.newFixedThreadPool(maxThreads);
+        out.println("#query file: " + queryFile.getName() + " db file: " + refFile.getName() + " k: " + k + " mode: " + mode + " usePrefilter: " + prefilter);
+        out.println("#seqname\tk\tref seqid\tref desc\torientation\tscore\tident\tquery start\tquery end\tquery length\tref start\tref end");
+                  
+        SequenceReader queryReader = new SequenceReader(queryFile);
+        Sequence seq;        
+        while ( (seq = queryReader.readNextSequence()) !=null){            
+            final Sequence threadSeq = seq;
+
+            Runnable r = new Runnable() {
+                public void run() {
+                    try {
+                        List<Neighbor> alignments = theObj.findMatch(threadSeq, removeBaseN);
+                        theObj.printAlignment(threadSeq, alignments, out);
+                        outstandingTasks.decrementAndGet();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+
+            outstandingTasks.incrementAndGet();
+            service.submit(r);
+
+            while (outstandingTasks.get() >= maxTasks);   
+        }
+        
+        service.shutdown();
+        service.awaitTermination(1, TimeUnit.DAYS);        
+        queryReader.close();
+        out.close();        
     }
 }
