@@ -30,6 +30,7 @@ import edu.msu.cme.rdp.readseq.utils.kmermatch.KmerMatchCore;
 import edu.msu.cme.rdp.readseq.utils.kmermatch.NuclSeqMatch;
 import edu.msu.cme.rdp.readseq.utils.kmermatch.ProteinSeqMatch;
 import edu.msu.cme.rdp.readseq.utils.orientation.GoodWordIterator;
+import edu.msu.cme.rdp.readseq.utils.orientation.OrientationChecker;
 import edu.msu.cme.rdp.readseq.utils.orientation.ProteinWordGenerator;
 import java.io.File;
 import java.io.IOException;
@@ -66,6 +67,7 @@ public class PairwiseKNN {
     private static final String dformat = "%1$.3f";
     private static final DistanceModel dist = new IdentityDistanceModel();
     private static final Comparator c = new ResultComparator();
+    private final SequenceType refSeqType ;
     
     public static class Neighbor {
 
@@ -114,7 +116,7 @@ public class PairwiseKNN {
         this.prefilter = prefilter;
         this.wordSize = ws;
         
-        SequenceType refSeqType = SeqUtils.guessSequenceType(refFile);
+        refSeqType = SeqUtils.guessSequenceType(refFile);
         parseRefSeq(refFile);
         if ( refSeqType == SequenceType.Protein){
             matrix = ScoringMatrix.getDefaultProteinMatrix();
@@ -159,39 +161,44 @@ public class PairwiseKNN {
      * 
      * @param seq
      * @param refList, allow different reference set for flexibility
+     * @param isSeqReversed indicates the orientation of the sequence compared to the original seq
+     * @param checkReverse for bacteria and archaea, we can use OrientationChecker, for other sequences, we should provide option
      * @return
      * @throws IOException
      * @throws OverlapCheckFailedException 
      */
-    public List<Neighbor> getKNN(Sequence seq, Collection<Sequence> refList, boolean removeBaseN) throws IOException, OverlapCheckFailedException {
+    public List<Neighbor> getKNN(Sequence seq, Collection<Sequence> refList, boolean removeBaseN, boolean isSeqReversed, boolean checkReverse) throws IOException, OverlapCheckFailedException {
         List<Neighbor> ret = new ArrayList();
         Neighbor n;
         if ( removeBaseN){
             Sequence temp = new Sequence(seq.getSeqName(), seq.getDesc(), seq.getSeqString().toUpperCase().replace("N", ""));
             seq = temp;
         }
-        SequenceType seqType = SeqUtils.guessSequenceType(seq);
+        
         for (Sequence dbSeq : refList) {
             n = new Neighbor();
             n.dbSeq = dbSeq;
             PairwiseAlignment fwd = PairwiseAligner.align(n.dbSeq.getSeqString(), seq.getSeqString(), matrix, mode);
-            if (seqType == SequenceType.Nucleotide) {
+            if (refSeqType == SequenceType.Nucleotide &&  checkReverse) {
+                            
                 PairwiseAlignment rc = PairwiseAligner.align(n.dbSeq.getSeqString(), IUBUtilities.reverseComplement(seq.getSeqString()), matrix, mode);
-                
                 if (rc.getScore() > fwd.getScore()) {
                     n.alignment = rc;
-                    n.reverse = true;
+                    n.reverse = isSeqReversed ? false :true;
                     double ident = 1 - dist.getDistance(rc.getAlignedSeqi().getBytes(), rc.getAlignedSeqj().getBytes(), 0);
                     rc.setIdent(ident);
                 } else {
                     n.alignment = fwd;
-                    n.reverse = false;
+                    n.reverse = isSeqReversed ? true : false;
                     double ident = 1 - dist.getDistance(fwd.getAlignedSeqi().getBytes(), fwd.getAlignedSeqj().getBytes(), 0);
                     fwd.setIdent(ident);
                 }
+               
             } else {
+                double ident = 1 - dist.getDistance(fwd.getAlignedSeqi().getBytes(), fwd.getAlignedSeqj().getBytes(), 0);
+                fwd.setIdent(ident);
                 n.alignment = fwd;
-                n.reverse = false;
+                n.reverse = isSeqReversed;
             }
 
             insert(n, ret, c, k);
@@ -201,16 +208,24 @@ public class PairwiseKNN {
     }  
     
     public List<Neighbor> findMatch(Sequence seq, boolean removeBaseN) throws IOException, OverlapCheckFailedException {
-        
-        if ( prefilter == 0) {   // do not pre-filter the reference seqs
-            return getKNN(seq, dbSeqsMap.values(), removeBaseN);
+        boolean isReversed = false;
+        if ( this.refSeqType == SequenceType.Nucleotide ){
+            //check orientation
+            isReversed = OrientationChecker.getChecker().isSeqReversed(seq.getSeqString());
+            if ( isReversed ){
+                seq = new Sequence(seq.getSeqName(), seq.getDesc(), IUBUtilities.reverseComplement(seq.getSeqString()));
+            }
+        }
+        if ( prefilter == 0) {   // do not pre-filter the reference seqs, so need to check both orientation
+            return getKNN(seq, dbSeqsMap.values(), removeBaseN, isReversed, true);
         }else {
             List<Sequence> refList = new ArrayList<Sequence>();
             ArrayList<ProteinSeqMatch.BestMatch> topKMatches= kerMatchCore.findTopKMatch(seq, prefilter);
+                        
             for (KmerMatchCore.BestMatch bestTarget : topKMatches) {
                 refList.add(bestTarget.getBestMatch());
             }
-            return getKNN(seq, refList, removeBaseN);
+            return getKNN(seq, refList, removeBaseN, isReversed, false);
         }        
     }
     
@@ -223,8 +238,6 @@ public class PairwiseKNN {
 
             out.println("@" + seq.getSeqName()
                     + "\t" + (index + 1)
-                    + "\t" + n.dbSeq.getSeqName()
-                    + "\t" + n.dbSeq.getDesc()
                     + "\t" + (n.reverse ? "-" : "+")
                     + "\t" + alignment.getScore()
                     + "\t" + String.format(dformat,alignment.getIdent())
@@ -232,7 +245,9 @@ public class PairwiseKNN {
                     + "\t" + alignment.getEndj()
                     + "\t" + seq.getSeqString().length()
                     + "\t" + alignment.getStarti()
-                    + "\t" + alignment.getEndi());
+                    + "\t" + alignment.getEndi()
+                    + "\t" + n.dbSeq.getSeqName()
+                    + "\t" + n.dbSeq.getDesc());
 
             out.println(">" + alignment.getAlignedSeqj());
             out.println(">" + alignment.getAlignedSeqi());
@@ -333,8 +348,8 @@ public class PairwiseKNN {
         final AtomicInteger outstandingTasks = new AtomicInteger();        
         ExecutorService service = Executors.newFixedThreadPool(maxThreads);
         out.println("#query file: " + queryFile.getName() + " db file: " + refFile.getName() + " k: " + k + " mode: " + mode + " usePrefilter: " + prefilter);
-        out.println("#seqname\tk\tref seqid\tref desc\torientation\tscore\tident\tquery start\tquery end\tquery length\tref start\tref end");
-                  
+        out.println("#seqname\tk\torientation\tscore\tident\tquery_start\tquery_end\tquery_length\tref_start\tref_end\tref_seqid\tref_desc");
+                
         SequenceReader queryReader = new SequenceReader(queryFile);
         Sequence seq;        
         while ( (seq = queryReader.readNextSequence()) !=null){            
